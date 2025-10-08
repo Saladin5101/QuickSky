@@ -1,55 +1,35 @@
-# Prerequisites
-*.d
+# Rust 编译产物（Cargo 生成的垃圾）
+/target/
+**/*.rs.bk
+Cargo.lock  # 如果你想让依赖版本灵活点，就加上这个；想固定版本就删掉
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+# C/C++ 编译产物（CMake 或手动编译的垃圾）
+/c_build/  # 假设 C/C++ 代码放 c_src/，编译到 c_build/
+c_src/*.o
+c_src/*.a
+c_src/*.lib
+c_src/*.so
+c_src/*.dll
+c_src/*.dylib
 
-# Linker output
-*.ilk
-*.map
-*.exp
+# 跨平台临时文件
+.DS_Store  # macOS 垃圾
+Thumbs.db  # Windows 垃圾
+*.swp      # Vim 临时文件
+*.swo
 
-# Precompiled Headers
-*.gch
-*.pch
+# 打包工具生成的安装包（别把 .deb/.pkg 提交到 Git）
+/dist/
+*.deb
+*.pkg
+*.dmg
+*.msi
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
+# IDE 配置（各用各的，别互相污染）
+.idea/
+.vscode/
+*.suo
+*.user
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# debug information files
-*.dwo
+# 本地测试用的配置（比如你自己的测试 repo 路径）
+.quicksky/  # 假设 QuickSky 本地配置存在这，别提交到远程
