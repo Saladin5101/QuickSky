@@ -1,0 +1,2 @@
+/usr/bin/ar qc libquickskysys.a CMakeFiles/quickskysys.dir/c_src/linux/sys_linux.c.o
+/usr/bin/ranlib libquickskysys.a
