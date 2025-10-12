@@ -1,0 +1,39 @@
+[package]
+name = "quicksky"
+version = "0.1.0"
+edition = "2021"
+description = "Lazy developer-friendly version control tool (command: sky)"
+license = "AGPL-3.0"
+
+[[bin]]
+name = "sky"
+path = "src/main.rs"
+
+[dependencies]
+# 1. 命令解析：必须加 derive Feature
+clap = { version = "4.4", features = ["derive"] }
+# 2. 错误处理：基础依赖，无特殊Feature
+anyhow = "1.0"
+# 3. 配置文件读写
+toml = "0.8"
+# 4. 目录遍历
+walkdir = "2.3"
+# 5. 忽略规则：直接用，无需Feature
+ignore = "0.4"
+# 6. 时间处理
+chrono = "0.4"
+# 7. UUID生成：必须加 v4 Feature（否则用不了 Uuid::v4()）
+uuid = "0.8.2"
+# 8. 序列化：必须加 derive Feature（否则用不了 Serialize/Deserialize 宏）
+serde = { version = "1.0", features = ["derive"] }
+# 9. 二进制序列化
+bincode = "1.3"
+# 10. 文件哈希：正确 crate 名是 md-5（不是 md5）
+md-5 = "0.10"
+# 11. 远程请求：必须加 blocking + json Feature
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+# 12. URL解析
+url = "2.4"
+# 13. JSON序列化：之前漏了，必须加
+serde_json = "1.0"
+rand = "0.8"

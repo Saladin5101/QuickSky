@@ -33,3 +33,8 @@ Thumbs.db  # Windows 垃圾
 
 # 本地测试用的配置（比如你自己的测试 repo 路径）
 .quicksky/  # 假设 QuickSky 本地配置存在这，别提交到远程
+
+
+# Added by cargo
+
+/target
