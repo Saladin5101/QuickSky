@@ -127,7 +127,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 
 ## Notes for V1  
-- QuickSky v1 is **100% native**—no wrapping, no依赖 on Git or other tools. It’s built from the ground up to be simple.  
+- QuickSky v1 is **100% native**—no wrapping, no rely on Git or other tools. It’s built from the ground up to be simple.  
 - Bugs? Feature requests? Open an issue or PR. This tool’s for *your* workflow—if something feels off, say so.  
 - No "best practices" lectures. If it works for how you code, that’s all that matters.  
 
