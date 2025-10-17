@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/Users/ddd/QuickSky-1/build",
+  "command": "/usr/bin/cc  -I/Users/ddd/QuickSky-1/c_src -g -arch arm64 -o CMakeFiles/quickskysys.dir/c_src/linux/sys_linux.c.o -c /Users/ddd/QuickSky-1/c_src/linux/sys_linux.c",
+  "file": "/Users/ddd/QuickSky-1/c_src/linux/sys_linux.c",
+  "output": "CMakeFiles/quickskysys.dir/c_src/linux/sys_linux.c.o"
+}
+]

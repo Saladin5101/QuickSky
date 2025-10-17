@@ -1,0 +1,3 @@
+/Users/ddd/QuickSky-1/build/CMakeFiles/quickskysys.dir
+/Users/ddd/QuickSky-1/build/CMakeFiles/edit_cache.dir
+/Users/ddd/QuickSky-1/build/CMakeFiles/rebuild_cache.dir
