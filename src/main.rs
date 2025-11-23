@@ -12,8 +12,10 @@ mod repo {
     pub mod config;
     pub mod change;
     pub mod commit;
+    pub mod branch;
 }
 mod remote;
+mod registry;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -33,6 +35,34 @@ enum SkyCmd {
     },
     #[command(about = "View all commit records")]
     Log,
+    #[command(about = "Branch management")]
+    Branch {
+        #[arg(short = 'a', help = "Create and switch to new branch")]
+        add: Option<String>,
+        #[arg(short = 'd', help = "Delete branch")]
+        delete: Option<String>,
+        #[arg(help = "Switch to existing branch")]
+        name: Option<String>,
+    },
+    #[command(about = "Switch to different repository")]
+    ChangeTo {
+        #[arg(help = "Repository name to switch to")]
+        repo_name: String,
+    },
+    #[command(about = "Rebase commits")]
+    Rebase {
+        #[arg(long, help = "Rebase all local changes")]
+        all: bool,
+        #[arg(help = "Date range (YYYY-MM-DD -> YYYY-MM-DD) or 'fuck-base' to undo")]
+        range: Option<String>,
+    },
+    #[command(about = "Edit past commit message")]
+    Reload {
+        #[arg(help = "Commit SHA to edit")]
+        commit_sha: String,
+        #[arg(help = "New commit message")]
+        message: String,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -41,6 +71,10 @@ fn main() -> anyhow::Result<()> {
         SkyCmd::Init => init()?,
         SkyCmd::Upload { message } => upload(message)?,
         SkyCmd::Log => log()?,
+        SkyCmd::Branch { add, delete, name } => branch_cmd(add, delete, name)?,
+        SkyCmd::ChangeTo { repo_name } => change_to(repo_name)?,
+        SkyCmd::Rebase { all, range } => rebase_cmd(all, range)?,
+        SkyCmd::Reload { commit_sha, message } => reload_commit(commit_sha, message)?,
     }
     Ok(())
 }
@@ -84,9 +118,17 @@ fn init() -> anyhow::Result<()> {
 
     // Initialize commit record directory
     fs::create_dir_all(repo_root.join(".quicksky/commits"))?;
+    
+    // Register repository in global registry
+    let repo_name = repo_root.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string();
+    registry::register_repo(&repo_name, &repo_root)?;
 
     println!("\n✅ Initialization successful!");
     println!("User: {} | Remote: {} | Main branch: {}", name, remote_url, branch);
+    println!("Repository '{}' registered for switching", repo_name);
     Ok(())
 }
 
@@ -108,7 +150,8 @@ fn upload(message: String) -> anyhow::Result<()> {
 
     // Push to remote
     println!("📤 Pushing to remote...");
-    remote::push(&config.remote, &config.branch.main, &commit)?;
+    let current_branch = config.branch.current.as_ref().unwrap_or(&config.branch.main);
+    remote::push(&config.remote, current_branch, &commit)?;
 
     // Output result
     println!("\n✅ Upload successful!");
@@ -142,5 +185,69 @@ fn log() -> anyhow::Result<()> {
             println!("     - {status_str}: {:?}", path);
         }
     }
+    Ok(())
+}
+
+/// Branch management command
+fn branch_cmd(add: Option<String>, delete: Option<String>, name: Option<String>) -> anyhow::Result<()> {
+    let repo_root = std::env::current_dir()?;
+    
+    if let Some(branch_name) = add {
+        repo::branch::create_and_switch(&repo_root, &branch_name)?;
+        println!("✅ Created and switched to branch: {}", branch_name);
+    } else if let Some(branch_name) = delete {
+        repo::branch::delete(&repo_root, &branch_name)?;
+        println!("✅ Deleted branch: {}", branch_name);
+    } else if let Some(branch_name) = name {
+        repo::branch::switch(&repo_root, &branch_name)?;
+        println!("✅ Switched to branch: {}", branch_name);
+    } else {
+        let current = repo::branch::get_current(&repo_root)?;
+        let branches = repo::branch::list_all(&repo_root)?;
+        println!("Current branch: {}", current);
+        println!("All branches: {}", branches.join(", "));
+    }
+    Ok(())
+}
+
+/// Switch to different repository
+fn change_to(repo_name: String) -> anyhow::Result<()> {
+    let repo_path = registry::find_repo(&repo_name)?;
+    std::env::set_current_dir(&repo_path)?;
+    println!("✅ Switched to repository: {} at {}", repo_name, repo_path.display());
+    Ok(())
+}
+
+/// Rebase commits
+fn rebase_cmd(all: bool, range: Option<String>) -> anyhow::Result<()> {
+    let repo_root = std::env::current_dir()?;
+    
+    if let Some(range_str) = range {
+        if range_str == "fuck-base" {
+            repo::branch::undo_rebase(&repo_root)?;
+            println!("✅ Rebase undone successfully");
+        } else if range_str.contains(" -> ") {
+            let dates: Vec<&str> = range_str.split(" -> ").collect();
+            if dates.len() == 2 {
+                repo::branch::rebase_date_range(&repo_root, dates[0], dates[1])?;
+                println!("✅ Rebased commits from {} to {}", dates[0], dates[1]);
+            } else {
+                return Err(anyhow::anyhow!("Invalid date range format. Use: YYYY-MM-DD -> YYYY-MM-DD"));
+            }
+        }
+    } else if all {
+        repo::branch::rebase_all(&repo_root)?;
+        println!("✅ Rebased all local changes");
+    } else {
+        return Err(anyhow::anyhow!("Please specify --all or date range"));
+    }
+    Ok(())
+}
+
+/// Edit past commit message
+fn reload_commit(commit_sha: String, message: String) -> anyhow::Result<()> {
+    let repo_root = std::env::current_dir()?;
+    repo::commit::edit_message(&repo_root, &commit_sha, &message)?;
+    println!("✅ Updated commit {} with new message: {}", commit_sha, message);
     Ok(())
 }

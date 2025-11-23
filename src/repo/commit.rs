@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow}; // Added import anyhow
+use anyhow::{Result, anyhow};
 use serde::{Serialize, Deserialize}; // Added import serde
 use super::change::{detect_changes, save_current_files, FileStatus};
 use super::config::RepoConfig;
@@ -6,11 +6,9 @@ use chrono::Local;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use ::ignore::gitignore; // Correct import: use ignore::gitignore
-use uuid::Uuid;
+
 
 fn generate_uuid_v4() -> String {
-    use rand::Rng; 
     use rand::RngCore;
     let mut rng = rand::thread_rng();
     let mut bytes = [0u8; 16];
@@ -92,4 +90,27 @@ impl Commit {
         commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(commits)
     }
+
+}
+
+/// Edit commit message by SHA
+pub fn edit_message(repo_root: &Path, commit_sha: &str, new_message: &str) -> Result<(), anyhow::Error> {
+    let commit_dir = repo_root.join(".quicksky/commits");
+    let commit_path = commit_dir.join(format!("{}.bin", commit_sha));
+    
+    if !commit_path.exists() {
+        return Err(anyhow!("Commit with SHA '{}' not found", commit_sha));
+    }
+    
+    // Load existing commit
+    let data = fs::read(&commit_path)?;
+    let mut commit: Commit = bincode::deserialize(&data)?;
+    
+    // Update message
+    commit.message = new_message.to_string();
+    
+    // Save updated commit
+    fs::write(commit_path, bincode::serialize(&commit)?)?;
+    
+    Ok(())
 }

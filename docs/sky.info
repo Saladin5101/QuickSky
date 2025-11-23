@@ -1,0 +1,369 @@
+This is sky.info, produced by makeinfo version 6.8 from sky.texi.
+
+INFO-DIR-SECTION Version Control
+START-INFO-DIR-ENTRY
+* Sky: (sky).           Lazy developer-friendly native version control tool.
+END-INFO-DIR-ENTRY
+
+
+File: sky.info,  Node: Top,  Next: Introduction,  Up: (dir)
+
+QuickSky Manual
+***************
+
+This manual describes QuickSky version 0.1.0, a lazy developer-friendly
+native version control tool.
+
+* Menu:
+
+* Introduction::        What is QuickSky?
+* Installation::        How to install QuickSky
+* Quick Start::         Getting started with QuickSky
+* Commands::            Complete command reference
+* Configuration::       Configuration files and settings
+* Examples::            Common usage examples
+* Troubleshooting::     Common issues and solutions
+
+
+File: sky.info,  Node: Introduction,  Next: Installation,  Prev: Top,  Up: Top
+
+1 Introduction
+**************
+
+QuickSky is a no-bullshit, standalone version control tool built from
+scratch to fix the stuff that makes version control feel like a chore.
+No more memorizing convoluted commands, hopping between directories, or
+fighting legacy workflows.
+
+QuickSky is designed for developers who just want to write code, not
+fight their tools. It provides native, simplified workflows with no
+dependency on existing tools like Git.
+
+1.1 Key Features
+================
+
+* One-Click Upload: 'sky upload' natively handles changes tracking,
+  committing, and remote sync
+* Repo 0-Hassle Switching: 'sky change-to <repo-name>' jumps straight
+  to your repo
+* Pain-Free Rebasing: Rebase by date range or rebase all local changes
+* Fix Old Commits: Edit past commits without breaking history
+* Simple Branching: Create/delete/switch branches with built-in logic
+
+
+File: sky.info,  Node: Installation,  Next: Quick Start,  Prev: Introduction,  Up: Top
+
+2 Installation
+**************
+
+QuickSky ships with native packages for most platforms.
+
+2.1 npm Package (Cross-Platform)
+=================================
+
+For Node.js (v14+) users, install globally:
+
+     npm install -g quicksky-cli
+
+2.2 DEB Package (Debian/Ubuntu)
+================================
+
+Download the latest '.deb' from releases and install:
+
+     sudo dpkg -i quicksky_1.0.0_amd64.deb
+     sudo apt-get install -f
+
+2.3 macOS Packages
+==================
+
+* PKG Installer: Download '.pkg' and double-click to install
+* DMG: Drag QuickSky binary to '/usr/local/bin'
+
+2.4 Windows MSI
+===============
+
+Download '.msi' from releases and run the installer.
+
+2.5 Verify Installation
+========================
+
+Check if working:
+
+     sky --help
+
+
+File: sky.info,  Node: Quick Start,  Next: Commands,  Prev: Installation,  Up: Top
+
+3 Quick Start
+*************
+
+3.1 Initialize Repository
+=========================
+
+Run in your project directory:
+
+     sky init
+
+Follow prompts for username, remote URL, and main branch name.
+
+3.2 Basic Workflow
+==================
+
+Upload changes:
+     sky upload "Fix login bug"
+
+Switch repositories:
+     sky change-to my-other-project
+
+Create new branch:
+     sky branch -a feature/payment
+
+View commit history:
+     sky log
+
+
+File: sky.info,  Node: Commands,  Next: Configuration,  Prev: Quick Start,  Up: Top
+
+4 Commands
+**********
+
+4.1 sky init
+============
+
+Initialize QuickSky repository in current directory.
+
+Prompts for:
+* Username (for commit attribution)
+* Remote repository URL
+* Main branch name
+
+4.2 sky upload [MESSAGE]
+========================
+
+Commit and push changes to remote repository.
+
+If no message provided, auto-generates timestamped commit message.
+
+Examples:
+     sky upload "Fix login bug"
+     sky upload
+
+4.3 sky log
+===========
+
+View all commit records in reverse chronological order.
+
+Shows SHA, author, timestamp, message, and file changes.
+
+4.4 sky branch [OPTIONS] [NAME]
+===============================
+
+Branch management operations:
+
+'-a NAME'
+     Create and switch to new branch
+
+'-d NAME'
+     Delete branch (cannot delete current branch)
+
+'NAME'
+     Switch to existing branch
+
+'(no args)'
+     List all branches and show current branch
+
+Examples:
+     sky branch -a feature/payment
+     sky branch main
+     sky branch -d old-feature
+     sky branch
+
+4.5 sky change-to REPO-NAME
+===========================
+
+Switch to different repository by name.
+
+QuickSky maintains a global registry of repositories.
+
+Example:
+     sky change-to my-other-project
+
+4.6 sky rebase [OPTIONS] [RANGE]
+================================
+
+Rebase commits with various options:
+
+'--all'
+     Rebase all local changes
+
+'YYYY-MM-DD -> YYYY-MM-DD'
+     Rebase commits within date range
+
+'fuck-base'
+     Undo last rebase operation
+
+Examples:
+     sky rebase --all
+     sky rebase 2024-10-01 -> 2024-10-05
+     sky rebase fuck-base
+
+4.7 sky reload COMMIT-SHA NEW-MESSAGE
+=====================================
+
+Edit past commit message by SHA without breaking history.
+
+Example:
+     sky reload a1b2c3d "Correct function name (fixes #42)"
+
+
+File: sky.info,  Node: Configuration,  Next: Examples,  Prev: Commands,  Up: Top
+
+5 Configuration
+***************
+
+5.1 Repository Configuration
+============================
+
+'.quicksky/config.toml'
+     Repository configuration file containing user, remote, and branch
+     settings
+
+5.2 Commit Storage
+==================
+
+'.quicksky/commits/'
+     Directory containing binary-serialized commit records
+
+'.quicksky/branches.json'
+     Branch state tracking file
+
+'.quicksky/last_files.json'
+     File hash cache for change detection
+
+5.3 Global Registry
+===================
+
+'~/.quicksky_registry.json'
+     Global repository registry for repo switching
+
+5.4 Ignore Rules
+================
+
+'.skyhide'
+     QuickSky-specific ignore rules (takes precedence over .gitignore)
+
+'.gitignore'
+     Standard ignore rules (supported for compatibility)
+
+
+File: sky.info,  Node: Examples,  Next: Troubleshooting,  Prev: Configuration,  Up: Top
+
+6 Examples
+**********
+
+6.1 Basic Workflow
+==================
+
+Initialize repository:
+     sky init
+
+Make changes and upload:
+     sky upload "Add new feature"
+
+View history:
+     sky log
+
+6.2 Branch Management
+=====================
+
+Create feature branch:
+     sky branch -a feature/login
+
+Work on feature and upload:
+     sky upload "Implement login form"
+
+Switch back to main:
+     sky branch main
+
+Delete feature branch:
+     sky branch -d feature/login
+
+6.3 Repository Switching
+========================
+
+Switch to different project:
+     sky change-to my-api-project
+
+Work and upload:
+     sky upload "Fix API endpoint"
+
+Switch back:
+     sky change-to my-frontend-project
+
+6.4 Advanced Operations
+=======================
+
+Rebase all changes:
+     sky rebase --all
+
+Rebase specific date range:
+     sky rebase 2024-01-01 -> 2024-01-31
+
+Fix old commit message:
+     sky reload abc123 "Better commit message"
+
+Undo rebase if needed:
+     sky rebase fuck-base
+
+
+File: sky.info,  Node: Troubleshooting,  Prev: Examples,  Up: Top
+
+7 Troubleshooting
+*****************
+
+7.1 Common Issues
+=================
+
+Repository not initialized:
+     Run 'sky init' in your project directory
+
+No changes detected:
+     Ensure files are not ignored by '.skyhide' or '.gitignore'
+
+Branch doesn't exist:
+     Use 'sky branch' to list available branches
+
+Repository not found:
+     Repository may not be registered. Re-run 'sky init' or check
+     '~/.quicksky_registry.json'
+
+7.2 Getting Help
+================
+
+Command help:
+     sky --help
+     sky COMMAND --help
+
+Report bugs:
+     https://github.com/Saladin5101/QuickSky/issues
+
+7.3 File Locations
+==================
+
+Check these files for debugging:
+* '.quicksky/config.toml' - Repository config
+* '~/.quicksky_registry.json' - Global registry
+* '.quicksky/branches.json' - Branch state
+
+
+Tag Table:
+Node: Top174
+Node: Introduction574
+Node: Installation1421
+Node: Quick Start2247
+Node: Commands2847
+Node: Configuration5421
+Node: Examples6347
+Node: Troubleshooting7647
+
+End Tag Table

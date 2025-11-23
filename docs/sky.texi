@@ -1,0 +1,408 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename sky.info
+@settitle QuickSky Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@copying
+This manual is for QuickSky version 0.1.0, a lazy developer-friendly native version control tool.
+
+Copyright @copyright{} 2024 Saladin5101.
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Affero General Public License, Version 3
+or any later version published by the Free Software Foundation.
+@end quotation
+@end copying
+
+@dircategory Version Control
+@direntry
+* Sky: (sky).           Lazy developer-friendly native version control tool.
+@end direntry
+
+@titlepage
+@title QuickSky Manual
+@subtitle Version 0.1.0
+@author Saladin5101
+
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top QuickSky Manual
+
+This manual describes QuickSky version 0.1.0, a lazy developer-friendly native version control tool.
+
+@insertcopying
+@end ifnottex
+
+@menu
+* Introduction::        What is QuickSky?
+* Installation::        How to install QuickSky
+* Quick Start::         Getting started with QuickSky
+* Commands::            Complete command reference
+* Configuration::       Configuration files and settings
+* Examples::            Common usage examples
+* Troubleshooting::     Common issues and solutions
+@end menu
+
+@node Introduction
+@chapter Introduction
+
+QuickSky is a no-bullshit, standalone version control tool built from scratch to fix the stuff that makes version control feel like a chore. No more memorizing convoluted commands, hopping between directories, or fighting legacy workflows.
+
+QuickSky is designed for developers who just want to write code, not fight their tools. It provides native, simplified workflows with no dependency on existing tools like Git.
+
+@section Key Features
+
+@itemize @bullet
+@item
+One-Click Upload: @code{sky upload} natively handles changes tracking, committing, and remote sync
+@item
+Repo 0-Hassle Switching: @code{sky change-to <repo-name>} jumps straight to your repo
+@item
+Pain-Free Rebasing: Rebase by date range or rebase all local changes
+@item
+Fix Old Commits: Edit past commits without breaking history
+@item
+Simple Branching: Create/delete/switch branches with built-in logic
+@end itemize
+
+@node Installation
+@chapter Installation
+
+QuickSky ships with native packages for most platforms.
+
+@section npm Package (Cross-Platform)
+
+For Node.js (v14+) users, install globally:
+
+@example
+npm install -g quicksky-cli
+@end example
+
+@section DEB Package (Debian/Ubuntu)
+
+Download the latest @file{.deb} from releases and install:
+
+@example
+sudo dpkg -i quicksky_1.0.0_amd64.deb
+sudo apt-get install -f
+@end example
+
+@section macOS Packages
+
+@itemize @bullet
+@item
+PKG Installer: Download @file{.pkg} and double-click to install
+@item
+DMG: Drag QuickSky binary to @file{/usr/local/bin}
+@end itemize
+
+@section Windows MSI
+
+Download @file{.msi} from releases and run the installer.
+
+@section Verify Installation
+
+Check if working:
+
+@example
+sky --help
+@end example
+
+@node Quick Start
+@chapter Quick Start
+
+@section Initialize Repository
+
+Run in your project directory:
+
+@example
+sky init
+@end example
+
+Follow prompts for username, remote URL, and main branch name.
+
+@section Basic Workflow
+
+Upload changes:
+@example
+sky upload "Fix login bug"
+@end example
+
+Switch repositories:
+@example
+sky change-to my-other-project
+@end example
+
+Create new branch:
+@example
+sky branch -a feature/payment
+@end example
+
+View commit history:
+@example
+sky log
+@end example
+
+@node Commands
+@chapter Commands
+
+@section sky init
+
+Initialize QuickSky repository in current directory.
+
+Prompts for:
+@itemize @bullet
+@item Username (for commit attribution)
+@item Remote repository URL
+@item Main branch name
+@end itemize
+
+@section sky upload [MESSAGE]
+
+Commit and push changes to remote repository.
+
+If no message provided, auto-generates timestamped commit message.
+
+Examples:
+@example
+sky upload "Fix login bug"
+sky upload
+@end example
+
+@section sky log
+
+View all commit records in reverse chronological order.
+
+Shows SHA, author, timestamp, message, and file changes.
+
+@section sky branch [OPTIONS] [NAME]
+
+Branch management operations:
+
+@table @code
+@item -a NAME
+Create and switch to new branch
+@item -d NAME
+Delete branch (cannot delete current branch)
+@item NAME
+Switch to existing branch
+@item (no args)
+List all branches and show current branch
+@end table
+
+Examples:
+@example
+sky branch -a feature/payment
+sky branch main
+sky branch -d old-feature
+sky branch
+@end example
+
+@section sky change-to REPO-NAME
+
+Switch to different repository by name.
+
+QuickSky maintains a global registry of repositories.
+
+Example:
+@example
+sky change-to my-other-project
+@end example
+
+@section sky rebase [OPTIONS] [RANGE]
+
+Rebase commits with various options:
+
+@table @code
+@item --all
+Rebase all local changes
+@item YYYY-MM-DD -> YYYY-MM-DD
+Rebase commits within date range
+@item fuck-base
+Undo last rebase operation
+@end table
+
+Examples:
+@example
+sky rebase --all
+sky rebase 2024-10-01 -> 2024-10-05
+sky rebase fuck-base
+@end example
+
+@section sky reload COMMIT-SHA NEW-MESSAGE
+
+Edit past commit message by SHA without breaking history.
+
+Example:
+@example
+sky reload a1b2c3d "Correct function name (fixes #42)"
+@end example
+
+@node Configuration
+@chapter Configuration
+
+@section Repository Configuration
+
+@table @file
+@item .quicksky/config.toml
+Repository configuration file containing user, remote, and branch settings
+@end table
+
+@section Commit Storage
+
+@table @file
+@item .quicksky/commits/
+Directory containing binary-serialized commit records
+@item .quicksky/branches.json
+Branch state tracking file
+@item .quicksky/last_files.json
+File hash cache for change detection
+@end table
+
+@section Global Registry
+
+@table @file
+@item ~/.quicksky_registry.json
+Global repository registry for repo switching
+@end table
+
+@section Ignore Rules
+
+@table @file
+@item .skyhide
+QuickSky-specific ignore rules (takes precedence over .gitignore)
+@item .gitignore
+Standard ignore rules (supported for compatibility)
+@end table
+
+@node Examples
+@chapter Examples
+
+@section Basic Workflow
+
+Initialize repository:
+@example
+sky init
+@end example
+
+Make changes and upload:
+@example
+sky upload "Add new feature"
+@end example
+
+View history:
+@example
+sky log
+@end example
+
+@section Branch Management
+
+Create feature branch:
+@example
+sky branch -a feature/login
+@end example
+
+Work on feature and upload:
+@example
+sky upload "Implement login form"
+@end example
+
+Switch back to main:
+@example
+sky branch main
+@end example
+
+Delete feature branch:
+@example
+sky branch -d feature/login
+@end example
+
+@section Repository Switching
+
+Switch to different project:
+@example
+sky change-to my-api-project
+@end example
+
+Work and upload:
+@example
+sky upload "Fix API endpoint"
+@end example
+
+Switch back:
+@example
+sky change-to my-frontend-project
+@end example
+
+@section Advanced Operations
+
+Rebase all changes:
+@example
+sky rebase --all
+@end example
+
+Rebase specific date range:
+@example
+sky rebase 2024-01-01 -> 2024-01-31
+@end example
+
+Fix old commit message:
+@example
+sky reload abc123 "Better commit message"
+@end example
+
+Undo rebase if needed:
+@example
+sky rebase fuck-base
+@end example
+
+@node Troubleshooting
+@chapter Troubleshooting
+
+@section Common Issues
+
+@table @asis
+@item Repository not initialized
+Run @code{sky init} in your project directory
+@item No changes detected
+Ensure files are not ignored by @file{.skyhide} or @file{.gitignore}
+@item Branch doesn't exist
+Use @code{sky branch} to list available branches
+@item Repository not found
+Repository may not be registered. Re-run @code{sky init} or check @file{~/.quicksky_registry.json}
+@end table
+
+@section Getting Help
+
+Command help:
+@example
+sky --help
+sky COMMAND --help
+@end example
+
+Report bugs:
+@example
+https://github.com/Saladin5101/QuickSky/issues
+@end example
+
+@section File Locations
+
+Check these files for debugging:
+@itemize @bullet
+@item @file{.quicksky/config.toml} - Repository config
+@item @file{~/.quicksky_registry.json} - Global registry
+@item @file{.quicksky/branches.json} - Branch state
+@end itemize
+
+@bye

@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 
 
@@ -24,6 +24,7 @@ pub struct RemoteConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BranchConfig {
     pub main: String, // Main branch name
+    pub current: Option<String>, // Current branch name
 }
 
 impl RepoConfig {
@@ -32,7 +33,7 @@ impl RepoConfig {
         Self {
             user: UserConfig { name },
             remote: RemoteConfig { url: remote_url, name: "origin".into() },
-            branch: BranchConfig { main: main_branch },
+            branch: BranchConfig { main: main_branch.clone(), current: Some(main_branch) },
         }
     }
 

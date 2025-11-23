@@ -1,0 +1,134 @@
+.TH SKY 1 "2025-11-23" "QuickSky 1.0.1" "User Commands "
+.SH NAME
+sky \- lazy developer-friendly native version control tool
+.SH SYNOPSIS
+.B sky
+[\fIOPTION\fR] \fICOMMAND\fR [\fIARGS\fR...]
+.SH DESCRIPTION
+QuickSky is a no-bullshit, standalone version control tool built from scratch to fix the stuff that makes version control feel like a chore. No more memorizing convoluted commands, hopping between directories, or fighting legacy workflows.
+.PP
+QuickSky is designed for developers who just want to write code, not fight their tools. It provides native, simplified workflows with no dependency on existing tools like Git.
+.SH COMMANDS
+.TP
+.B init
+Initialize QuickSky repository in current directory. Prompts for username, remote URL, and main branch name.
+.TP
+.B upload \fR[\fIMESSAGE\fR]
+Commit and push changes to remote repository. If no message provided, auto-generates timestamped commit message.
+.TP
+.B log
+View all commit records in reverse chronological order with SHA, author, timestamp, message, and file changes.
+.TP
+.B branch \fR[\fIOPTIONS\fR] [\fINAME\fR]
+Branch management operations:
+.RS
+.TP
+.B \-a \fINAME\fR
+Create and switch to new branch
+.TP
+.B \-d \fINAME\fR
+Delete branch (cannot delete current branch)
+.TP
+.B \fINAME\fR
+Switch to existing branch
+.TP
+(no args)
+List all branches and show current branch
+.RE
+.TP
+.B change-to \fIREPO-NAME\fR
+Switch to different repository by name. QuickSky maintains a global registry of repositories.
+.TP
+.B rebase \fR[\fIOPTIONS\fR] [\fIRANGE\fR]
+Rebase commits with various options:
+.RS
+.TP
+.B \-\-all
+Rebase all local changes
+.TP
+.B \fIYYYY-MM-DD\fR -> \fIYYYY-MM-DD\fR
+Rebase commits within date range
+.TP
+.B fuck-base
+Undo last rebase operation
+.RE
+.TP
+.B reload \fICOMMIT-SHA\fR \fINEW-MESSAGE\fR
+Edit past commit message by SHA without breaking history.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+Print help information
+.TP
+.B \-V, \-\-version
+Print version information
+.SH FILES
+.TP
+.I .quicksky/config.toml
+Repository configuration file containing user, remote, and branch settings
+.TP
+.I .quicksky/commits/
+Directory containing binary-serialized commit records
+.TP
+.I .quicksky/branches.json
+Branch state tracking file
+.TP
+.I .quicksky/last_files.json
+File hash cache for change detection
+.TP
+.I ~/.quicksky_registry.json
+Global repository registry for repo switching
+.TP
+.I .skyhide
+QuickSky-specific ignore rules (takes precedence over .gitignore)
+.TP
+.I .gitignore
+Standard ignore rules (supported for compatibility)
+.SH EXAMPLES
+.TP
+Initialize a new repository:
+.B sky init
+.TP
+Upload changes with custom message:
+.B sky upload "Fix login bug + add user profile"
+.TP
+Upload changes with auto-generated message:
+.B sky upload
+.TP
+Create and switch to new branch:
+.B sky branch -a feature/payment
+.TP
+Switch repositories:
+.B sky change-to my-other-project
+.TP
+Rebase all local changes:
+.B sky rebase --all
+.TP
+Rebase commits from date range:
+.B sky rebase 2024-10-01 -> 2024-10-05
+.TP
+Undo last rebase:
+.B sky rebase fuck-base
+.TP
+Edit old commit message:
+.B sky reload a1b2c3d "Correct function name (fixes #42)"
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+General error (invalid arguments, file not found, etc.)
+.SH AUTHOR
+Written by Saladin5101.
+.SH REPORTING BUGS
+Report bugs to: https://github.com/Saladin5101/QuickSky/issues
+.SH COPYRIGHT
+Copyright \(co 2025 Saladin5101. License AGPLv3: GNU Affero GPL version 3.
+.br
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+.SH SEE ALSO
+.BR info (1)
+.PP
+Full documentation: https://github.com/Saladin5101/QuickSky

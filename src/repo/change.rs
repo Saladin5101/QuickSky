@@ -1,4 +1,3 @@
-use super::config::RepoConfig;
 use crate::ignore;
 use std::collections::HashMap;
 use std::fs;
