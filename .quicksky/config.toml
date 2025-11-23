@@ -1,0 +1,9 @@
+[user]
+name = "testing"
+
+[remote]
+url = "local.com"
+name = "origin"
+
+[branch]
+main = "testing"
