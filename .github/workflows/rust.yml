@@ -21,7 +21,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Login into crates.io
-      run: cargo login ${{ secrets.CRATES_IO }}
+      run: cargo login cioLOxKhtdruO6kgCs6XUdat10oOr6K27Kn
     - name: Build binaries in "release" mode
       run: cargo build -r
     - name: "Package for crates.io"
