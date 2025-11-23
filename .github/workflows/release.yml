@@ -1,0 +1,133 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: sky
+            asset_name: quicksky-linux-amd64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: sky
+            asset_name: quicksky-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: sky
+            asset_name: quicksky-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: sky.exe
+            asset_name: quicksky-windows-amd64.exe
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: ${{ matrix.target }}
+        override: true
+
+    - name: Build binary
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --release --target ${{ matrix.target }}
+
+    - name: Strip binary (Unix)
+      if: matrix.os != 'windows-latest'
+      run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.asset_name }}
+        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  package:
+    name: Create Packages
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            package_type: debian
+          - os: macos-latest
+            package_type: macos
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Install makeinfo (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo apt-get update && sudo apt-get install -y texinfo
+
+    - name: Install makeinfo (macOS)
+      if: matrix.os == 'macos-latest'
+      run: brew install texinfo
+
+    - name: Build documentation
+      run: |
+        cd docs
+        make info
+
+    - name: Prepare binary
+      run: |
+        mkdir -p target/release
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          cp quicksky-linux-amd64/sky target/release/
+        else
+          cp quicksky-macos-amd64/sky target/release/
+        fi
+        chmod +x target/release/sky
+
+    - name: Build packages
+      run: |
+        cd build
+        ./build-packages.sh ${{ matrix.package_type }}
+
+    - name: Upload packages
+      uses: actions/upload-artifact@v3
+      with:
+        name: packages-${{ matrix.package_type }}
+        path: build/*.{deb,pkg}
+
+  release:
+    name: Create Release
+    needs: [build, package]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          quicksky-*/sky*
+          packages-*/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

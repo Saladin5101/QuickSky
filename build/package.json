@@ -1,0 +1,28 @@
+{
+  "name": "quicksky-cli",
+  "version": "0.1.0",
+  "description": "Lazy developer-friendly native version control tool",
+  "main": "index.js",
+  "bin": {
+    "sky": "./bin/sky"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "keywords": ["version-control", "git", "cli", "developer-tools"],
+  "author": "Saladin5101",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Saladin5101/QuickSky.git"
+  },
+  "homepage": "https://github.com/Saladin5101/QuickSky",
+  "bugs": {
+    "url": "https://github.com/Saladin5101/QuickSky/issues"
+  },
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
