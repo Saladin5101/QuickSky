@@ -26,7 +26,7 @@ QuickSky ships with native packages for most platforms—no build-from-source ha
 ### 1. Cargo Package (For Linux And macOS Users , Cross-Platform, Node.js Required)
 For Cargo (v1.90+) users, install globally as a native CLI:  
 ```bash
-
+cargo install quicksky
 ```  
 ### 2. macOS Packages (PKG/DMG)  
 - **PKG Installer**: Download the `.pkg` from [Releases](https://github.com/Saladin5101/QuickSky/releases) and double-click to run (sets up system-wide PATH automatically).  
