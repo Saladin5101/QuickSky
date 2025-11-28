@@ -39,3 +39,4 @@ windows/
 macos/
 debian/
 .DS_Store
+.skyhide

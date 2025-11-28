@@ -1,8 +1,9 @@
 [user]
-name = "testing"
+name = "Saladin5101"
+token = "your_github_token_here"
 
 [remote]
-url = "local.com"
+url = "https://github.com/Saladin5101/QuickSky.git"
 name = "origin"
 
 [branch]

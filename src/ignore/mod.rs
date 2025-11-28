@@ -2,18 +2,29 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};  // 1. Correct import: use
 use std::path::{Path};
 use anyhow::{Result, anyhow}; // Add import anyhow
 
-/// Load .skyhide and .gitignore rules (.skyhide takes precedence)
+/// Load .skyhide rules (QuickSky's native ignore file)
 pub fn load_ignore_rules(repo_root: &Path) -> Result<Gitignore, anyhow::Error> {
     let mut builder = GitignoreBuilder::new(repo_root);
+    
+    // Load .skyhide if it exists (QuickSky's native ignore file)
     let skyhide = repo_root.join(".skyhide");
     if skyhide.exists() {
-        // Fix usage of ? (builder.add returns Option, convert to Result)
-        builder.add(skyhide).ok_or_else(|| anyhow!("Failed to load .skyhide"))?;
+        builder.add(&skyhide); // Ignore errors, .skyhide is optional
     }
-    let gitignore = repo_root.join(".gitignore");
-    if gitignore.exists() {
-        builder.add(gitignore).ok_or_else(|| anyhow!("Failed to load .gitignore"))?;
+    
+    // Add default ignore patterns for QuickSky
+    let default_patterns = [
+        ".quicksky/",
+        "target/",
+        "*.tmp",
+        ".DS_Store",
+        "Thumbs.db"
+    ];
+    
+    for pattern in &default_patterns {
+        builder.add_line(None, pattern).map_err(|e| anyhow!("Failed to add default pattern: {}", e))?;
     }
+    
     Ok(builder.build()?)
 }
 
