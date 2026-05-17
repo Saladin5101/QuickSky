@@ -1,5 +1,5 @@
 [package]
-name = "quicksky-"
+name = "quicksky"
 version = "1.0.0"
 edition = "2021"
 description = "Lazy developer-friendly native version control tool (command: sky)"
@@ -41,3 +41,4 @@ url = "2.4"
 
 serde_json = "1.0"
 rand = "0.8"
+lettre = { version = "0.11", features = ["smtp-transport", "builder"] }

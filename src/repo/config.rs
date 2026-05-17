@@ -4,15 +4,25 @@ use std::fs;
 
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub from: String,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RepoConfig {
     pub user: UserConfig,
     pub remote: RemoteConfig,
     pub branch: BranchConfig,
+    pub smtp: Option<SmtpConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserConfig {
     pub name: String,
+    pub token: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -29,11 +39,12 @@ pub struct BranchConfig {
 
 impl RepoConfig {
     /// Create a new configuration
-    pub fn new(name: String, remote_url: String, main_branch: String) -> Self {
+    pub fn new(name: String, token: Option<String>, remote_url: String, main_branch: String, smtp: Option<SmtpConfig>) -> Self {
         Self {
-            user: UserConfig { name },
+            user: UserConfig { name, token },
             remote: RemoteConfig { url: remote_url, name: "origin".into() },
             branch: BranchConfig { main: main_branch.clone(), current: Some(main_branch) },
+            smtp,
         }
     }
 

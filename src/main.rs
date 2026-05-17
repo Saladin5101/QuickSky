@@ -1,8 +1,8 @@
 use clap::Parser;
-// use anyhow::{Result, anyhow};
 use std::io::Write;
 use std::fs;
 use std::io::{self, BufRead};
+use std::path::PathBuf;
 
 mod ffi {
     pub mod sys;
@@ -13,15 +13,19 @@ mod repo {
     pub mod change;
     pub mod commit;
     pub mod branch;
+    pub mod patch;
 }
-mod remote;
+mod remote {
+    pub mod ops;
+    pub mod email;
+}
 mod registry;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "sky",
     author = "Saladin5101",
-    version = "0.1.0",
+    version = "1.0.1",
     about = "Lazy developer-friendly version control tool",
     long_about = None
 )]
@@ -63,6 +67,23 @@ enum SkyCmd {
         #[arg(help = "New commit message")]
         message: String,
     },
+    #[command(about = "Generate patch from a commit and send it via email")]
+    PatchSend {
+        #[arg(long, help = "Commit SHA to generate patch from (default: HEAD)")]
+        commit: Option<String>,
+        #[arg(help = "Patch file path to write/read (optional, defaults to <commit-id>.patch)")]
+        patch_file: Option<String>,
+        #[arg(long, help = "Recipient email address")]
+        to: String,
+        #[arg(long, help = "Override email subject (default: commit message)")]
+        subject: Option<String>,
+        #[arg(long, help = "SMTP host:port (overrides config, e.g. smtp.example.com:587)")]
+        smtp: Option<String>,
+        #[arg(long, help = "Sender email address (overrides config)")]
+        from: Option<String>,
+        #[arg(long, help = "SMTP password (overrides config)")]
+        pass: Option<String>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -75,8 +96,18 @@ fn main() -> anyhow::Result<()> {
         SkyCmd::ChangeTo { repo_name } => change_to(repo_name)?,
         SkyCmd::Rebase { all, range } => rebase_cmd(all, range)?,
         SkyCmd::Reload { commit_sha, message } => reload_commit(commit_sha, message)?,
+        SkyCmd::PatchSend { commit, patch_file, to, subject, smtp, from, pass } =>
+            patch_send(commit, patch_file, to, subject, smtp, from, pass)?,
     }
     Ok(())
+}
+
+fn read_line(reader: &mut impl BufRead, prompt: &str) -> anyhow::Result<String> {
+    print!("{}", prompt);
+    io::stdout().flush()?;
+    let mut buf = String::new();
+    reader.read_line(&mut buf)?;
+    Ok(buf.trim().to_string())
 }
 
 /// Initialize repository
@@ -90,36 +121,37 @@ fn init() -> anyhow::Result<()> {
     let stdin = io::stdin();
     let mut reader = stdin.lock();
 
-    // Read username
-    print!("Enter username: ");
-    io::stdout().flush()?;
-    let mut name = String::new();
-    reader.read_line(&mut name)?;
-    let name = name.trim().to_string();
+    let name       = read_line(&mut reader, "Enter username: ")?;
+    let token_raw  = read_line(&mut reader, "Enter PAT/token (leave blank to skip): ")?;
+    let token      = if token_raw.is_empty() { None } else { Some(token_raw) };
+    let remote_url = read_line(&mut reader, "Enter remote repository URL: ")?;
+    let branch_raw = read_line(&mut reader, "Enter main branch name (default: main): ")?;
+    let branch     = if branch_raw.is_empty() { "main".into() } else { branch_raw };
 
-    // Read remote URL
-    print!("Enter remote repository URL: ");
-    io::stdout().flush()?;
-    let mut remote_url = String::new();
-    reader.read_line(&mut remote_url)?;
-    let remote_url = remote_url.trim().to_string();
+    // SMTP (all optional)
+    println!("\nSMTP configuration (for sky patch-send) — leave blank to skip:");
+    let smtp_host = read_line(&mut reader, "  SMTP host (e.g. smtp.gmail.com): ")?;
+    let smtp_cfg = if smtp_host.is_empty() {
+        None
+    } else {
+        let smtp_port_raw = read_line(&mut reader, "  SMTP port (default: 587): ")?;
+        let smtp_port = smtp_port_raw.parse::<u16>().unwrap_or(587);
+        let smtp_from = read_line(&mut reader, "  Sender email: ")?;
+        let smtp_pass_raw = read_line(&mut reader, "  SMTP password (leave blank to skip): ")?;
+        let smtp_pass = if smtp_pass_raw.is_empty() { None } else { Some(smtp_pass_raw) };
+        Some(repo::config::SmtpConfig {
+            host: smtp_host,
+            port: smtp_port,
+            from: smtp_from,
+            password: smtp_pass,
+        })
+    };
 
-    // Read main branch name
-    print!("Enter main branch name (default: main): ");
-    io::stdout().flush()?;
-    let mut branch = String::new();
-    reader.read_line(&mut branch)?;
-    let branch = branch.trim().to_string();
-    let branch = if branch.is_empty() { "main".into() } else { branch };
-
-    // Save configuration
-    let config = repo::config::RepoConfig::new(name.clone(), remote_url.clone(), branch.clone());
+    let config = repo::config::RepoConfig::new(name.clone(), token, remote_url.clone(), branch.clone(), smtp_cfg);
     config.save(&repo_root)?;
 
-    // Initialize commit record directory
     fs::create_dir_all(repo_root.join(".quicksky/commits"))?;
-    
-    // Register repository in global registry
+
     let repo_name = repo_root.file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown")
@@ -127,7 +159,9 @@ fn init() -> anyhow::Result<()> {
     registry::register_repo(&repo_name, &repo_root)?;
 
     println!("\n✅ Initialization successful!");
-    println!("User: {} | Remote: {} | Main branch: {}", name, remote_url, branch);
+    println!("User: {} | Remote: {} | Branch: {}", name, remote_url, branch);
+    println!("Token: {}", if config.user.token.is_some() { "configured" } else { "not set" });
+    println!("SMTP: {}", if config.smtp.is_some() { "configured" } else { "not set" });
     println!("Repository '{}' registered for switching", repo_name);
     Ok(())
 }
@@ -137,23 +171,19 @@ fn upload(message: String) -> anyhow::Result<()> {
     let repo_root = std::env::current_dir()?;
     let config = repo::config::RepoConfig::load(&repo_root)?;
 
-    // Generate commit message
     let msg = if message.is_empty() {
         format!("Auto-commit: {}", chrono::Local::now().format("%Y-%m-%d %H:%M"))
     } else {
         message
     };
 
-    // Create local commit
     println!("🔍 Detecting changes...");
     let commit = repo::commit::Commit::create(&repo_root, &config, &msg)?;
 
-    // Push to remote
     println!("📤 Pushing to remote...");
-    let current_branch = config.branch.current.as_ref().unwrap_or(&config.branch.main);
-    remote::push(&config.remote, current_branch, &commit)?;
+    let current_branch = config.branch.current.as_ref().unwrap_or(&config.branch.main).clone();
+    remote::ops::push(&config, &current_branch, &commit, &repo_root)?;
 
-    // Output result
     println!("\n✅ Upload successful!");
     println!("Commit ID: {}", commit.id);
     println!("Message: {}", commit.message);
@@ -178,9 +208,9 @@ fn log() -> anyhow::Result<()> {
         println!("   Changes:");
         for (path, status) in &commit.changes {
             let status_str = match status {
-                repo::change::FileStatus::Added => "Added",
+                repo::change::FileStatus::Added    => "Added",
                 repo::change::FileStatus::Modified => "Modified",
-                repo::change::FileStatus::Deleted => "Deleted",
+                repo::change::FileStatus::Deleted  => "Deleted",
             };
             println!("     - {status_str}: {:?}", path);
         }
@@ -191,7 +221,7 @@ fn log() -> anyhow::Result<()> {
 /// Branch management command
 fn branch_cmd(add: Option<String>, delete: Option<String>, name: Option<String>) -> anyhow::Result<()> {
     let repo_root = std::env::current_dir()?;
-    
+
     if let Some(branch_name) = add {
         repo::branch::create_and_switch(&repo_root, &branch_name)?;
         println!("✅ Created and switched to branch: {}", branch_name);
@@ -202,7 +232,7 @@ fn branch_cmd(add: Option<String>, delete: Option<String>, name: Option<String>)
         repo::branch::switch(&repo_root, &branch_name)?;
         println!("✅ Switched to branch: {}", branch_name);
     } else {
-        let current = repo::branch::get_current(&repo_root)?;
+        let current  = repo::branch::get_current(&repo_root)?;
         let branches = repo::branch::list_all(&repo_root)?;
         println!("Current branch: {}", current);
         println!("All branches: {}", branches.join(", "));
@@ -221,7 +251,7 @@ fn change_to(repo_name: String) -> anyhow::Result<()> {
 /// Rebase commits
 fn rebase_cmd(all: bool, range: Option<String>) -> anyhow::Result<()> {
     let repo_root = std::env::current_dir()?;
-    
+
     if let Some(range_str) = range {
         if range_str == "fuck-base" {
             repo::branch::undo_rebase(&repo_root)?;
@@ -236,8 +266,12 @@ fn rebase_cmd(all: bool, range: Option<String>) -> anyhow::Result<()> {
             }
         }
     } else if all {
+        let config = repo::config::RepoConfig::load(&repo_root)?;
+        let branch = config.branch.current.as_ref().unwrap_or(&config.branch.main).clone();
+        println!("📥 Pulling from remote...");
+        remote::ops::pull(&config, &branch, &repo_root)?;
         repo::branch::rebase_all(&repo_root)?;
-        println!("✅ Rebased all local changes");
+        println!("✅ Pulled remote changes and rebased local commits");
     } else {
         return Err(anyhow::anyhow!("Please specify --all or date range"));
     }
@@ -249,5 +283,65 @@ fn reload_commit(commit_sha: String, message: String) -> anyhow::Result<()> {
     let repo_root = std::env::current_dir()?;
     repo::commit::edit_message(&repo_root, &commit_sha, &message)?;
     println!("✅ Updated commit {} with new message: {}", commit_sha, message);
+    Ok(())
+}
+
+/// Generate patch from commit and send via email
+fn patch_send(
+    commit_sha: Option<String>,
+    patch_file: Option<String>,
+    to: String,
+    subject: Option<String>,
+    smtp_override: Option<String>,
+    from_override: Option<String>,
+    pass_override: Option<String>,
+) -> anyhow::Result<()> {
+    let repo_root = std::env::current_dir()?;
+    let config = repo::config::RepoConfig::load(&repo_root)?;
+
+    // Resolve commit
+    let commit = match commit_sha {
+        Some(sha) => repo::commit::Commit::load_all(&repo_root)?
+            .into_iter()
+            .find(|c| c.id.starts_with(&sha))
+            .ok_or_else(|| anyhow::anyhow!("Commit '{}' not found", sha))?,
+        None => repo::patch::head_commit(&repo_root)?,
+    };
+
+    // Resolve patch file path
+    let patch_path = PathBuf::from(
+        patch_file.unwrap_or_else(|| format!("{}.patch", &commit.id[..8]))
+    );
+
+    // Generate patch if it doesn't already exist
+    if !patch_path.exists() {
+        println!("📝 Generating patch...");
+        repo::patch::format_patch(&repo_root, &commit, &patch_path)?;
+        println!("   Written to {}", patch_path.display());
+    } else {
+        println!("📎 Using existing patch file: {}", patch_path.display());
+    }
+
+    // Resolve SMTP config: CLI args override stored config
+    let mut smtp = config.smtp.clone()
+        .ok_or_else(|| anyhow::anyhow!(
+            "No SMTP config found. Run `sky init` again or pass --smtp/--from/--pass"
+        ))?;
+
+    if let Some(s) = smtp_override {
+        let parts: Vec<&str> = s.splitn(2, ':').collect();
+        smtp.host = parts[0].to_string();
+        if let Some(port) = parts.get(1) {
+            smtp.port = port.parse().unwrap_or(587);
+        }
+    }
+    if let Some(f) = from_override { smtp.from = f; }
+    if let Some(p) = pass_override { smtp.password = Some(p); }
+
+    let subject = subject.unwrap_or_else(|| commit.message.clone());
+
+    println!("📧 Sending patch to {}...", to);
+    remote::email::send_patch(&smtp, &to, &subject, &patch_path)?;
+    println!("✅ Patch sent successfully!");
     Ok(())
 }

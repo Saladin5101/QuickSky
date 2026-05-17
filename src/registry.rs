@@ -83,6 +83,7 @@ pub fn register_repo(repo_name: &str, repo_path: &Path) -> Result<()> {
 }
 
 /// List all registered repositories
+#[allow(dead_code)]
 pub fn list_repos() -> Result<HashMap<String, PathBuf>> {
     let registry = RepoRegistry::load()?;
     Ok(registry.repos)
