@@ -1,6 +1,6 @@
 [package]
 name = "quicksky"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Lazy developer-friendly native version control tool (command: sky)"
 license = "AGPL-3.0"
