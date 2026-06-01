@@ -1,6 +1,6 @@
 [package]
 name = "quicksky"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "Lazy developer-friendly native version control tool (command: sky)"
 license = "AGPL-3.0"
@@ -35,6 +35,10 @@ bincode = "1.3"
 
 md-5 = "0.10"
 
+sha2 = "0.10"
+
+zstd = "0.13"
+
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 
 url = "2.4"
@@ -42,3 +46,6 @@ url = "2.4"
 serde_json = "1.0"
 rand = "0.8"
 lettre = { version = "0.11", features = ["smtp-transport", "builder"] }
+tempfile = "3.8"
+ssh2 = "0.9"
+tiny_http = "0.12"

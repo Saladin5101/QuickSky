@@ -1,41 +1,54 @@
 use anyhow::{Result, anyhow};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::fs;
 use crate::repo::change::FileStatus;
 use crate::repo::commit::Commit;
-use crate::repo::config::RepoConfig;
+use crate::repo::config::{RepoConfig, RemoteEntry};
+use crate::repo::object;
 
-/// A file entry sent over the wire: relative path + raw bytes
+// ── Wire types ────────────────────────────────────────────────────────────────
+
 #[derive(Serialize, Deserialize)]
-pub(crate) struct RemoteFile {
-    path: PathBuf,
-    content: Vec<u8>,
+pub struct RemoteFile {
+    pub path: PathBuf,
+    pub content: Vec<u8>,
 }
 
-/// Push payload: commit metadata + full file contents for added/modified files
+/// Incremental push: only send commits the remote doesn't have yet
 #[derive(Serialize)]
-struct PushPayload<'a> {
-    branch: &'a str,
-    commit_id: &'a str,
-    author: &'a str,
-    timestamp: &'a str,
-    message: &'a str,
-    /// Deleted file paths
-    deleted: Vec<PathBuf>,
-    /// Added/modified files with content
+#[allow(dead_code)]
+struct PushPayload {
+    branch: String,
+    /// New commit objects (bincode-serialised, zstd-compressed — already stored in object DB)
+    objects: Vec<ObjectEntry>,
+    /// Ordered list of commit IDs being pushed (newest last)
+    commit_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ObjectEntry {
+    pub hash: String,
+    pub data: Vec<u8>, // raw compressed bytes straight from object store
+}
+
+/// Remote tells us which commit IDs it already has
+#[derive(Deserialize)]
+struct RemoteHas {
+    commit_ids: Vec<String>,
+}
+
+/// Pull response: objects the client asked for
+#[derive(Deserialize)]
+struct PullPayload {
+    objects: Vec<ObjectEntry>,
     files: Vec<RemoteFile>,
 }
 
-/// Pull response: snapshot of all files on the remote branch
-#[derive(Deserialize)]
-pub struct PullPayload {
-    pub files: Vec<RemoteFile>,
-}
+// ── HTTP client ───────────────────────────────────────────────────────────────
 
-fn build_client(token: Option<&str>) -> Client {
+fn http_client(token: Option<&str>) -> Client {
     use reqwest::header::{self, HeaderMap, HeaderValue};
     let mut headers = HeaderMap::new();
     if let Some(t) = token {
@@ -47,118 +60,171 @@ fn build_client(token: Option<&str>) -> Client {
     Client::builder().default_headers(headers).build().unwrap()
 }
 
-/// Push a commit to a QuickSky-compatible remote server.
-///
-/// Remote URL format: `http(s)://host[:port]/repo-name`
-/// Endpoint used: `POST {url}/push`
+// ── Transport dispatch ────────────────────────────────────────────────────────
+
+fn is_ssh(url: &str) -> bool {
+    url.starts_with("ssh://") || url.starts_with("git@")
+}
+
+// ── Push ──────────────────────────────────────────────────────────────────────
+
+/// Push to a named remote (defaults to "origin")
 pub fn push(config: &RepoConfig, branch: &str, commit: &Commit, repo_root: &Path) -> Result<()> {
-    let client = build_client(config.user.token.as_deref());
+    let remote = config.default_remote();
+    push_to(&remote, config, branch, commit, repo_root)
+}
 
-    let mut deleted = Vec::new();
+pub fn push_to(remote: &RemoteEntry, config: &RepoConfig, branch: &str, commit: &Commit, repo_root: &Path) -> Result<()> {
+    if is_ssh(&remote.url) {
+        return crate::remote::ssh::push(remote, config, branch, commit, repo_root);
+    }
+    push_http(remote, config, branch, commit, repo_root)
+}
+
+fn push_http(remote: &RemoteEntry, config: &RepoConfig, branch: &str, _commit: &Commit, repo_root: &Path) -> Result<()> {
+    let client = http_client(config.user.token.as_deref());
+    let base = remote.url.trim_end_matches('/');
+
+    // 1. Ask remote which commits it already has
+    let has: RemoteHas = client
+        .get(format!("{}/commits?branch={}", base, branch))
+        .send()
+        .map_err(|e| anyhow!("Cannot reach remote: {}", e))?
+        .json()
+        .unwrap_or(RemoteHas { commit_ids: vec![] });
+
+    let known: std::collections::HashSet<String> = has.commit_ids.into_iter().collect();
+
+    // 2. Collect only new commits (walk back from HEAD until we hit a known one)
+    let all_commits = Commit::load_all(repo_root)?;
+    let new_commits: Vec<&Commit> = all_commits
+        .iter()
+        .take_while(|c| !known.contains(&c.id))
+        .collect();
+
+    if new_commits.is_empty() {
+        println!("   Remote is already up to date.");
+        return Ok(());
+    }
+
+    // 3. Store each new commit in object DB and collect objects to send
+    let mut objects = Vec::new();
+    let mut commit_ids = Vec::new();
+
+    for c in new_commits.iter().rev() {
+        let bytes = bincode::serialize(c)?;
+        let hash = object::store_commit(repo_root, &bytes)?;
+        let raw = fs::read(repo_root.join(".quicksky/objects")
+            .join(&hash[..2]).join(&hash[2..]))?;
+        objects.push(ObjectEntry { hash, data: raw });
+        commit_ids.push(c.id.clone());
+    }
+
+    // 4. Also send file contents for the tip commit
+    let tip = new_commits[0]; // newest
     let mut files = Vec::new();
-
-    for (rel_path, status) in &commit.changes {
-        match status {
-            FileStatus::Deleted => deleted.push(rel_path.clone()),
-            FileStatus::Added | FileStatus::Modified => {
-                let full = repo_root.join(rel_path);
-                let content = fs::read(&full)
-                    .map_err(|e| anyhow!("Cannot read {}: {}", full.display(), e))?;
+    for (rel_path, status) in &tip.changes {
+        if matches!(status, FileStatus::Added | FileStatus::Modified) {
+            let full = repo_root.join(rel_path);
+            if let Ok(content) = fs::read(&full) {
                 files.push(RemoteFile { path: rel_path.clone(), content });
             }
         }
     }
 
-    let payload = PushPayload {
-        branch,
-        commit_id: &commit.id,
-        author: &commit.author,
-        timestamp: &commit.timestamp,
-        message: &commit.message,
-        deleted,
-        files,
-    };
+    // 5. Send
+    let payload = serde_json::json!({
+        "branch": branch,
+        "objects": objects,
+        "commit_ids": commit_ids,
+        "files": files,
+    });
 
-    let url = format!("{}/push", config.remote.url.trim_end_matches('/'));
-    let resp = client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .map_err(|e| anyhow!("Push request failed: {}", e))?;
+    let resp = client.post(format!("{}/push", base)).json(&payload).send()
+        .map_err(|e| anyhow!("Push failed: {}", e))?;
 
     if !resp.status().is_success() {
-        return Err(anyhow!("Push rejected by remote ({}): {}", resp.status(), resp.text()?));
+        return Err(anyhow!("Remote rejected push ({}): {}", resp.status(), resp.text()?));
     }
     Ok(())
 }
 
-/// Pull the latest file snapshot from a QuickSky-compatible remote server.
-///
-/// Endpoint used: `GET {url}/pull?branch={branch}`
-/// Writes all received files into `repo_root`.
-pub fn pull(config: &RepoConfig, branch: &str, repo_root: &Path) -> Result<()> {
-    let client = build_client(config.user.token.as_deref());
+// ── Pull ──────────────────────────────────────────────────────────────────────
 
-    let url = format!("{}/pull", config.remote.url.trim_end_matches('/'));
+pub fn pull(config: &RepoConfig, branch: &str, repo_root: &Path) -> Result<()> {
+    let remote = config.default_remote();
+    pull_from(&remote, config, branch, repo_root)
+}
+
+pub fn pull_from(remote: &RemoteEntry, config: &RepoConfig, branch: &str, repo_root: &Path) -> Result<()> {
+    if is_ssh(&remote.url) {
+        return crate::remote::ssh::pull(remote, config, branch, repo_root);
+    }
+    pull_http(remote, config, branch, repo_root)
+}
+
+fn pull_http(remote: &RemoteEntry, config: &RepoConfig, branch: &str, repo_root: &Path) -> Result<()> {
+    let client = http_client(config.user.token.as_deref());
+    let base = remote.url.trim_end_matches('/');
+
+    // 1. Tell remote which commits we already have
+    let local_ids = object::list_objects(repo_root)?;
     let resp = client
-        .get(&url)
-        .query(&[("branch", branch)])
+        .post(format!("{}/pull", base))
+        .json(&serde_json::json!({ "branch": branch, "have": local_ids }))
         .send()
-        .map_err(|e| anyhow!("Pull request failed: {}", e))?
+        .map_err(|e| anyhow!("Pull failed: {}", e))?
         .error_for_status()
         .map_err(|e| anyhow!("Remote rejected pull: {}", e))?;
 
     let payload: PullPayload = resp.json()?;
 
-    for file in payload.files {
+    // 2. Store received objects
+    for obj in &payload.objects {
+        let path = repo_root.join(".quicksky/objects")
+            .join(&obj.hash[..2]).join(&obj.hash[2..]);
+        if !path.exists() {
+            fs::create_dir_all(path.parent().unwrap())?;
+            fs::write(&path, &obj.data)?;
+        }
+    }
+
+    // 3. Write files to working directory
+    for file in &payload.files {
         let local_path = repo_root.join(&file.path);
         if let Some(parent) = local_path.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(&local_path, &file.content)?;
     }
+
     Ok(())
 }
 
-/// Fetch only the list of remote commit IDs (lightweight check before full pull).
-///
-/// Endpoint used: `GET {url}/commits?branch={branch}`
+// ── Misc ──────────────────────────────────────────────────────────────────────
+
 #[allow(dead_code)]
 pub fn fetch_commit_ids(config: &RepoConfig, branch: &str) -> Result<Vec<String>> {
-    let client = build_client(config.user.token.as_deref());
-    let url = format!("{}/commits", config.remote.url.trim_end_matches('/'));
+    let client = http_client(config.user.token.as_deref());
+    let base = config.default_remote().url;
     let resp = client
-        .get(&url)
-        .query(&[("branch", branch)])
+        .get(format!("{}/commits?branch={}", base.trim_end_matches('/'), branch))
         .send()
         .map_err(|e| anyhow!("Fetch failed: {}", e))?
-        .error_for_status()
-        .map_err(|e| anyhow!("Remote rejected fetch: {}", e))?;
-
-    let ids: Vec<String> = resp.json()?;
-    Ok(ids)
+        .error_for_status()?;
+    let has: RemoteHas = resp.json()?;
+    Ok(has.commit_ids)
 }
 
-/// Check whether the remote is reachable and the repo exists.
-///
-/// Endpoint used: `GET {url}/ping`
 #[allow(dead_code)]
 pub fn ping(config: &RepoConfig) -> Result<()> {
-    let client = build_client(config.user.token.as_deref());
-    let url = format!("{}/ping", config.remote.url.trim_end_matches('/'));
+    let client = http_client(config.user.token.as_deref());
+    let base = config.default_remote().url;
     client
-        .get(&url)
+        .get(format!("{}/ping", base.trim_end_matches('/')))
         .send()
-        .map_err(|e| anyhow!("Cannot reach remote '{}': {}", config.remote.url, e))?
+        .map_err(|e| anyhow!("Cannot reach remote: {}", e))?
         .error_for_status()
-        .map_err(|e| anyhow!("Remote ping failed: {}", e))?;
+        .map_err(|e| anyhow!("Ping failed: {}", e))?;
     Ok(())
-}
-
-/// Resolve conflicts: map of path -> chosen side ("local" | "remote")
-#[derive(Serialize)]
-#[allow(dead_code)]
-pub struct ConflictResolution {
-    pub branch: String,
-    pub choices: HashMap<PathBuf, String>,
 }
