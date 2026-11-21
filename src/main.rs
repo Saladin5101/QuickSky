@@ -120,6 +120,7 @@ enum SkyCmd {
 
     #[command(about = "Start QuickSky P2P server")]
     Serve {
+        path: std::net::IpAddr,
         #[arg(long, default_value_t = 7272)]
         port: u16,
     },
@@ -139,7 +140,7 @@ fn main() -> anyhow::Result<()> {
         SkyCmd::Remote { add, remove, list }                                  => remote_cmd(add, remove, list)?,
         SkyCmd::Peer { add, remove, list }                                    => peer_cmd(add, remove, list)?,
         SkyCmd::Sync                                                          => sync_cmd()?,
-        SkyCmd::Serve { port }                                                => serve_cmd(port)?,
+        SkyCmd::Serve { path, port }                                                => serve_cmd(path, port)?,
     }
     Ok(())
 }
@@ -421,7 +422,7 @@ fn sync_cmd() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn serve_cmd(port: u16) -> anyhow::Result<()> {
+fn serve_cmd(path: std::net::IpAddr, port: u16) -> anyhow::Result<()> {
     let repo_root = std::env::current_dir()?;
-    remote::server::serve(&repo_root, port)
+    remote::server::serve(&repo_root, path, port)
 }

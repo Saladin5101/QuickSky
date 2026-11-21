@@ -60,8 +60,8 @@ fn err_response(msg: &str) -> Response<std::io::Cursor<Vec<u8>>> {
 }
 
 /// Start the QuickSky P2P server. Blocks until Ctrl-C.
-pub fn serve(repo_root: &Path, port: u16) -> Result<()> {
-    let addr = format!("0.0.0.0:{}", port);
+pub fn serve(repo_root: &Path, path: std::net::IpAddr, port: u16) -> Result<()> {
+    let addr = format!("{}:{}", path, port);
     let server = Server::http(&addr)
         .map_err(|e| anyhow!("Cannot bind to {}: {}", addr, e))?;
 
